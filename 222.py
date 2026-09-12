@@ -10,7 +10,6 @@ def fibonacci(n):
      for _ in range(n):
         yield a
         a,b = b,a + b
-    return nums
 
 for i in  fibonacci(100):
     print(i)
