@@ -77,7 +77,8 @@ jobs:
             # 3. 检查 Staging
             # ==========================================
 
-            if curl -fs http://127.0.0.1:8081 > /dev/null; then
+            if curl -fs http://127.0.0.1:8081 > /tmp/staging.html \
+              && grep -q "欢迎来到我的企业网站" /tmp/staging.html; then
 
               echo "STAGING CHECK PASSED"
               echo "[$(date '+%F %T')] STAGING_PASS $NEW_IMAGE" >> "$DEPLOY_LOG"
