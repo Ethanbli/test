@@ -22,34 +22,34 @@ jobs:
           source: "index.html,Dockerfile,compose.yaml"
           target: "/home/devops/site"
 
-- name: Deploy versioned image
-  uses: appleboy/ssh-action@v1
-  env:
-    VERSION: ${{ github.sha }}
-  with:
-    host: ${{ secrets.SERVER_HOST }}
-    username: ${{ secrets.SERVER_USER }}
-    key: ${{ secrets.SSH_PRIVATE_KEY }}
-    envs: VERSION
-    script: |
-      cd /home/devops/site
+      - name: Deploy versioned image
+        uses: appleboy/ssh-action@v1
+        env:
+          VERSION: ${{ github.sha }}
+        with:
+          host: ${{ secrets.SERVER_HOST }}
+          username: ${{ secrets.SERVER_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          envs: VERSION
+          script: |
+            cd /home/devops/site
 
-      SHORT_SHA=$(echo $VERSION | cut -c1-7)
+            SHORT_SHA=$(echo "$VERSION" | cut -c1-7)
 
-      echo "Deploying version: $SHORT_SHA"
+            echo "Deploying version: $SHORT_SHA"
 
-      docker build -t site-web:$SHORT_SHA .
+            docker build -t site-web:$SHORT_SHA .
 
-      docker rm -f my-website 2>/dev/null || true
+            docker rm -f my-website 2>/dev/null || true
 
-      docker run -d \
-        --name my-website \
-        --restart unless-stopped \
-        -p 8080:80 \
-        site-web:$SHORT_SHA
+            docker run -d \
+              --name my-website \
+              --restart unless-stopped \
+              -p 8080:80 \
+              site-web:$SHORT_SHA
 
-      sleep 3
+            sleep 3
 
-      curl -f http://127.0.0.1:8080
+            curl -f http://127.0.0.1:8080
 
-      docker ps
+            docker ps
