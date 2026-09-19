@@ -11,11 +11,12 @@ concurrency:
 
 jobs:
 
-  # 第一阶段：Staging 测试环境
-  staging:
-    test:
-      name: 自动化测试
-      runs-on: ubuntu-latest
+  # ==========================================
+  # 第一阶段：自动化测试
+  # ==========================================
+  test:
+    name: 自动化测试
+    runs-on: ubuntu-latest
 
     steps:
       - name: 获取代码
@@ -25,9 +26,15 @@ jobs:
         run: |
           chmod +x test.sh
           ./test.sh
+
+
+  # ==========================================
+  # 第二阶段：Staging 测试环境
+  # ==========================================
+  staging:
     name: Staging Test
     runs-on: ubuntu-latest
-    need: test
+    needs: test
 
     steps:
       - name: Checkout code
