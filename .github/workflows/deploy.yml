@@ -26,7 +26,7 @@ jobs:
           source: "index.html,Dockerfile,compose.yaml"
           target: "/home/devops/site"
 
-      - name: Deploy versioned image
+      - name: Staging and Production Deploy
         uses: appleboy/ssh-action@v1
         env:
           VERSION: ${{ github.sha }}
@@ -42,26 +42,72 @@ jobs:
             NEW_IMAGE="site-web:$SHORT_SHA"
             DEPLOY_LOG="/home/devops/site/deploy.log"
 
-            # 记录当前生产环境镜像，用于失败回滚
-            OLD_IMAGE=$(docker inspect my-website --format='{{.Config.Image}}' 2>/dev/null || true)
-
             echo "======================================"
-            echo "Old version: $OLD_IMAGE"
-            echo "New version: $NEW_IMAGE"
+            echo "NEW VERSION: $NEW_IMAGE"
             echo "======================================"
 
-            # 写入部署开始记录
             echo "[$(date '+%F %T')] START $NEW_IMAGE" >> "$DEPLOY_LOG"
 
-            # 构建新版本
+            # ==========================================
+            # 1. 构建新版本
+            # ==========================================
+
             echo "Building new image..."
+
             docker build -t "$NEW_IMAGE" .
 
-            # 删除旧容器
-            docker rm -f my-website 2>/dev/null || true
+            # ==========================================
+            # 2. 部署到 Staging :8081
+            # ==========================================
 
-            # 启动新版本
-            echo "Starting new version..."
+            echo "Deploying to STAGING..."
+
+            docker rm -f staging-website 2>/dev/null || true
+
+            docker run -d \
+              --name staging-website \
+              --restart unless-stopped \
+              -p 8081:80 \
+              "$NEW_IMAGE"
+
+            echo "Waiting for staging..."
+            sleep 5
+
+            # ==========================================
+            # 3. 检查 Staging
+            # ==========================================
+
+            if curl -fs http://127.0.0.1:8081 > /dev/null; then
+
+              echo "STAGING CHECK PASSED"
+              echo "[$(date '+%F %T')] STAGING_PASS $NEW_IMAGE" >> "$DEPLOY_LOG"
+
+            else
+
+              echo "STAGING CHECK FAILED"
+              echo "[$(date '+%F %T')] STAGING_FAILED $NEW_IMAGE" >> "$DEPLOY_LOG"
+
+              docker logs staging-website || true
+              docker rm -f staging-website || true
+
+              echo "Production was NOT changed."
+              exit 1
+
+            fi
+
+            # ==========================================
+            # 4. Staging 通过，准备 Production
+            # ==========================================
+
+            echo "Staging passed."
+            echo "Starting PRODUCTION deployment..."
+
+            OLD_IMAGE=$(docker inspect my-website --format='{{.Config.Image}}' 2>/dev/null || true)
+
+            echo "OLD PRODUCTION: $OLD_IMAGE"
+            echo "NEW PRODUCTION: $NEW_IMAGE"
+
+            docker rm -f my-website 2>/dev/null || true
 
             docker run -d \
               --name my-website \
@@ -69,41 +115,37 @@ jobs:
               -p 8080:80 \
               "$NEW_IMAGE"
 
-            echo "Waiting for application..."
+            echo "Waiting for production..."
             sleep 5
 
-            # Health Check
+            # ==========================================
+            # 5. 检查 Production
+            # ==========================================
+
             if curl -fs http://127.0.0.1:8080 > /dev/null; then
 
-              echo "DEPLOY SUCCESS: $NEW_IMAGE"
+              echo "PRODUCTION DEPLOY SUCCESS"
 
-              # 写入成功记录
               echo "[$(date '+%F %T')] SUCCESS $NEW_IMAGE" >> "$DEPLOY_LOG"
 
-              # 清理无用 Docker 数据
               echo "Cleaning unused Docker data..."
 
               docker image prune -f
               docker builder prune -f
 
-              echo "Cleanup finished"
-
             else
 
-              echo "DEPLOY FAILED: $NEW_IMAGE"
+              echo "PRODUCTION DEPLOY FAILED"
 
-              # 写入失败记录
               echo "[$(date '+%F %T')] FAILED $NEW_IMAGE" >> "$DEPLOY_LOG"
 
-              echo "Saving failed container logs..."
-
-              # 把失败容器日志保存到 Actions
               docker logs my-website || true
-
-              # 删除失败的新版本容器
               docker rm -f my-website || true
 
-              # 如果存在旧版本，就自动回滚
+              # ========================================
+              # 6. Production 自动回滚
+              # ========================================
+
               if [ -n "$OLD_IMAGE" ]; then
 
                 echo "Rolling back to $OLD_IMAGE"
@@ -116,10 +158,9 @@ jobs:
 
                 sleep 3
 
-                # 检查回滚是否成功
                 if curl -fs http://127.0.0.1:8080 > /dev/null; then
 
-                  echo "ROLLBACK SUCCESS: $OLD_IMAGE"
+                  echo "ROLLBACK SUCCESS"
 
                   echo "[$(date '+%F %T')] ROLLBACK $NEW_IMAGE -> $OLD_IMAGE" >> "$DEPLOY_LOG"
 
@@ -131,20 +172,15 @@ jobs:
 
                 fi
 
-              else
-
-                echo "No old image available for rollback"
-
-                echo "[$(date '+%F %T')] NO_ROLLBACK_IMAGE" >> "$DEPLOY_LOG"
-
               fi
 
-              # 让 GitHub Actions 显示红色
               exit 1
 
             fi
 
             echo "======================================"
-            echo "Current running container:"
-            docker ps --filter name=my-website
+            echo "DEPLOYMENT FINISHED"
             echo "======================================"
+
+            docker ps --filter name=my-website
+            docker ps --filter name=staging-website
