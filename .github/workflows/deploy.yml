@@ -11,13 +11,11 @@ concurrency:
 
 jobs:
 
-  # ==========================================
   # 第一阶段：Staging 测试环境
-  # ==========================================
   staging:
     test:
-    name: 自动化测试
-    runs-on: ubuntu-latest
+      name: 自动化测试
+      runs-on: ubuntu-latest
 
     steps:
       - name: 获取代码
