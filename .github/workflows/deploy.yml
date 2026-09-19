@@ -35,21 +35,59 @@ jobs:
             cd /home/devops/site
 
             SHORT_SHA=$(echo "$VERSION" | cut -c1-7)
+            NEW_IMAGE="site-web:$SHORT_SHA"
 
-            echo "Deploying version: $SHORT_SHA"
+            # 记录当前生产环境镜像，用于失败回滚
+            OLD_IMAGE=$(docker inspect my-website --format='{{.Config.Image}}' 2>/dev/null || true)
 
-            docker build -t site-web:$SHORT_SHA .
+            echo "Old version: $OLD_IMAGE"
+            echo "New version: $NEW_IMAGE"
 
+            # 构建新版本
+            docker build -t "$NEW_IMAGE" .
+
+            # 切换到新版本
             docker rm -f my-website 2>/dev/null || true
 
             docker run -d \
               --name my-website \
               --restart unless-stopped \
               -p 8080:80 \
-              site-web:$SHORT_SHA
+              "$NEW_IMAGE"
 
-            sleep 3
+            echo "Waiting for application..."
+            sleep 5
 
-            curl -f http://127.0.0.1:8080
+            # 健康检查
+            if curl -fs http://127.0.0.1:8080 > /dev/null; then
+              echo "DEPLOY SUCCESS: $NEW_IMAGE"
+            else
+              echo "DEPLOY FAILED: $NEW_IMAGE"
+              echo "Saving failed container logs..."
+
+              docker logs my-website || true
+              docker rm -f my-website || true
+
+              # 自动回滚
+              if [ -n "$OLD_IMAGE" ]; then
+                echo "Rolling back to $OLD_IMAGE"
+
+                docker run -d \
+                  --name my-website \
+                  --restart unless-stopped \
+                  -p 8080:80 \
+                  "$OLD_IMAGE"
+
+                sleep 3
+
+                if curl -fs http://127.0.0.1:8080 > /dev/null; then
+                  echo "ROLLBACK SUCCESS: $OLD_IMAGE"
+                else
+                  echo "ROLLBACK FAILED"
+                fi
+              fi
+
+              exit 1
+            fi
 
             docker ps
