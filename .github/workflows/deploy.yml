@@ -237,3 +237,9 @@ jobs:
           else
             echo "- Production：❌ 部署失败，请检查日志" >> "$GITHUB_STEP_SUMMARY"
           fi
+      - name: 部署失败告警
+        if: failure()
+        run: |
+          echo "::error title=生产环境部署失败::Production 部署失败，请立即检查 Actions 日志"
+          echo "🚨 Production deployment failed!"
+          echo "Version: ${{ github.sha }}"
