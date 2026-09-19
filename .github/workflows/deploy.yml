@@ -220,3 +220,20 @@ jobs:
             echo "======================================"
 
             docker ps --filter name=my-website
+                  - name: 生成部署报告
+        if: always()
+        shell: bash
+        run: |
+          SHORT_SHA=$(echo "${{ github.sha }}" | cut -c1-7)
+
+          echo "# 🚀 Production 部署报告" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "- 版本：site-web:$SHORT_SHA" >> "$GITHUB_STEP_SUMMARY"
+          echo "- 环境：Production" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Staging：✅ 已通过" >> "$GITHUB_STEP_SUMMARY"
+
+          if [ "${{ job.status }}" = "success" ]; then
+            echo "- Production：✅ 部署成功" >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "- Production：❌ 部署失败，请检查日志" >> "$GITHUB_STEP_SUMMARY"
+          fi
