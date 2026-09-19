@@ -220,7 +220,7 @@ jobs:
             echo "======================================"
 
             docker ps --filter name=my-website
-                  - name: 生成部署报告
+      - name: 生成部署报告
         if: always()
         shell: bash
         run: |
