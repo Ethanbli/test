@@ -61,6 +61,14 @@ jobs:
             # 健康检查
             if curl -fs http://127.0.0.1:8080 > /dev/null; then
               echo "DEPLOY SUCCESS: $NEW_IMAGE"
+
+              echo "Cleaning unused Docker data..."
+
+              docker image prune -f
+              docker builder prune -f
+
+              echo "Cleanup finished"
+
             else
               echo "DEPLOY FAILED: $NEW_IMAGE"
               echo "Saving failed container logs..."
